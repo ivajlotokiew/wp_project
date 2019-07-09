@@ -1,0 +1,12 @@
+/*
+Theme Name: Twenty Nineteen Child
+Theme URI: http://home.local
+Description: This is my theme
+Author: Ivaylo Tokiev
+Template: twentynineteen
+Version: 1.0.0
+Text Domain: twentynineteen-child
+ */
+
+@import url("../twentynineteen/style.css");
+

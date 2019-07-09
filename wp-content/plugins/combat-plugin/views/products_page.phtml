@@ -1,0 +1,211 @@
+<style>
+    .product-container {
+        border: 4px solid black;
+        border-radius: 5px;
+        background: yellow;
+        height: 100px;
+        margin-bottom: 10px;
+        cursor: pointer;
+    }
+
+    .product-title {
+        font-size: 25px;
+        font-weight: bold;
+        margin-left: 15px;
+    }
+
+    .additional-info {
+        font-size: 15px;
+        font-weight: bold;
+        margin-left: 15px;
+    }
+
+    .select_logo {
+        display: inline-block;
+        height: 90px;
+        width: 90px;
+        border-radius: 5px;
+        background-color: #b5bcc2;
+        cursor: pointer;
+    }
+
+    .pull-right {
+        display: inline-block;
+        float: right;
+    }
+
+
+</style>
+
+<div class="form-group">
+    <input data-provide="datepicker">
+    <input type="button" name="down" id="downBtn" value="Down"/>
+</div>
+<div class="main-container">
+
+</div>
+<div id="bottom-position" class="form-group">
+    <label for="eProducts">Apply all: </label>
+    <input type="button" name="name" id="eProducts" value="Apply"/>
+</div>
+
+<script type="text/javascript">
+    let editedProducts = {};
+    let categories = <?= json_encode($params['categories']); ?>;
+    let products = <?= json_encode($params['products']); ?>;
+    let $mainContainer = jQuery('.main-container');
+    let $body = jQuery("body");
+    jQuery(window).on('load', function () {
+        renderProducts();
+        jQuery(".main-container").on("click", ".product-container", function () {
+            let productId = jQuery(this).data("product_id");
+            if (editedProducts.hasOwnProperty(productId)) {
+                formEditProduct(editedProducts[productId]);
+            } else {
+                getProduct(productId);
+            }
+        });
+        jQuery("#downBtn").on("click", function () {
+            scrollBottom();
+        });
+        jQuery("#eProducts").on("click", function () {
+            if (!(Object.keys(editedProducts).length === 0 && editedProducts.constructor === Object)) {
+                editProducts(editedProducts);
+            } else {
+                alert("Check console for more info.");
+                console.error("There are no products to edit.")
+            }
+        })
+    });
+
+    /**
+     *
+     * @param {Product} product
+     */
+    function renderProducts() {
+        $mainContainer.find(".product-container").remove();
+        for (let key in products) {
+            if (products.hasOwnProperty(key) && editedProducts.hasOwnProperty(products[key].id)) {
+                $mainContainer
+                    .append(productBadge(editedProducts[products[key].id]));
+            } else {
+                $mainContainer
+                    .append(productBadge(Product.bindProductObject(products[key])));
+            }
+        }
+    }
+
+    /**
+     *
+     * @param {Product} product
+     */
+    function formEditProduct(product) {
+        let editForm = `<form id = "edit-form">
+                    <div class = "form-group>
+                    <label for = "pName"> Product: </label>
+                              <input type = "text" name = "name" id = "pName"  class = "form-control" value = "${product.name}" > <br>
+                              <input type = "hidden" id = "product_id" name = "id" value = "${product.id}">
+                                                  </div>
+                                                  <div class = "form-group>
+                                                  <label for = "price"> Price: </label>
+                              <input type = "text" name = "price" id = "price" class = "form-control" value = "${product.price}" > <br>
+                                                  <div>
+                                                  <div class = "form-group">
+                                                  <label for = "category_name" > Category: </label>
+                              <select name = "category_id" id = "category_name" class = "form-control">`;
+        for (let category of categories) {
+            if (product.category.name === category.name) {
+                editForm += "<option value=" + category.id + " selected >" + category.name + "</option>";
+            } else {
+                editForm += "<option value=" + category.id + ">" + category.name + "</option>";
+            }
+        }
+
+        editForm += ` < /select></div > < /form>`;
+
+        let dialog = bootbox.dialog({
+            title: 'Edit product',
+            message: editForm,
+            size: 'large',
+            buttons: {
+                Cancel: {
+                    label: "Cancel",
+                    className: 'btn-danger',
+                    callback: function () {
+                        console.log('Custom cancel clicked');
+                    }
+                },
+                Edit: {
+                    label: "Edit",
+                    className: 'btn-info',
+                    callback: function () {
+                        let category_name = $("#category_name :selected").text();
+                        let data = jQuery("#edit-form").serializeArray();
+                        data.push({name: "category_name", value: category_name});
+                        let product = objectifyForm(data);
+                        let editedProduct = Product.bindProductObject(product);
+                        editedProduct.status = true;
+                        storeEditedProducts(editedProduct);
+                        renderProducts();
+                    }
+                }
+            }
+        }).init(function () {
+
+        })
+    }
+
+    function getProduct(productId) {
+        let getProduct = Product.getProduct(productId);
+        getProduct.then((response) => {
+                let product = Product.bindProductObject(response[0]);
+                console.log(product);
+                formEditProduct(product);
+            },
+            (err) => {
+                console.log("Something goes wrong: ", err);
+            }
+        );
+    }
+
+    function scrollBottom() {
+        let $bottomElm = jQuery("#bottom-position")[0];
+        $bottomElm.scrollIntoView({block: 'start', behavior: 'smooth'});
+    }
+
+    function objectifyForm(formArray) {//serialize data function
+        let returnArray = {};
+        for (let i = 0; i < formArray.length; i++) {
+            returnArray[formArray[i]['name']] = formArray[i]['value'];
+        }
+
+        return returnArray;
+    }
+
+    function storeEditedProducts(editedProduct) {
+        editedProducts[editedProduct.id] = editedProduct;
+    }
+
+    /**
+     *
+     * @param {Product[]} products
+     */
+    function editProducts(products) {
+        let ajaxPromisesEditedProducts = [];
+        const keys = Object.keys(products);
+        for (const key of keys) {
+            ajaxPromisesEditedProducts.push(products[key].edit());
+        }
+
+        Promise.all(ajaxPromisesEditedProducts)
+            .then((response) => {
+                    Object.keys(products).forEach(k => delete products[k]);
+                    location.reload(true);
+                    console.log(response);
+                },
+                (err) => {
+                    console.log(err);
+                }
+            )
+    }
+</script>
